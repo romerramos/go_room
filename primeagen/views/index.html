@@ -1,0 +1,22 @@
+{{ block "index" . }}
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<script src="https://unpkg.com/htmx.org/dist/htmx.js"></script>
+		<title>PrimeAgen</title>
+	</head>
+	<body>
+		<div id="count">
+			{{ template "count" . }}
+		</div>
+		<button hx-target="#count" hx-post="/count">Count</button>
+	</html>
+{{ end }}
+
+<template>
+	{{ block "count" . }}
+		Count {{.Count}}
+	{{ end }}
+</template>
