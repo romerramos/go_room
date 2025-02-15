@@ -1,0 +1,22 @@
+{{ define "content" }}
+<div class="bg-white rounded-lg shadow p-6">
+  <div class="flex justify-between items-center mb-6">
+    <h2 class="text-xl font-semibold text-gray-700">Your Bills</h2>
+    <button
+      class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+      hx-get="/bills/new"
+      hx-target="#bills-form"
+      hx-swap="innerHTML"
+    >
+      Add New Bill
+    </button>
+  </div>
+
+  <div id="bills-form"></div>
+
+  <div id="bills-list" class="mt-6">
+    <!-- Bills will be loaded here -->
+    <p class="text-gray-500 text-center">No bills yet. Add your first bill!</p>
+  </div>
+</div>
+{{ end }}
