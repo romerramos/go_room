@@ -1,0 +1,82 @@
+<form
+  id="bill-form"
+  method="POST"
+  action="/bills"
+  class="space-y-6"
+  enctype="application/x-www-form-urlencoded"
+>
+  <div class="grid gap-4 mb-4 sm:grid-cols-2">
+    <div>
+      <label
+        for="due_date"
+        class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+        >Due Date</label
+      >
+      <input
+        type="date"
+        name="due_date"
+        id="due_date"
+        class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
+        required
+      />
+    </div>
+    <div>
+      <label
+        for="issuer_id"
+        class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+        >Issuer</label
+      >
+      <select
+        name="issuer_id"
+        id="issuer_id"
+        class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
+        required
+      >
+        <option value="">Select an issuer</option>
+        {{range .Issuers}}
+        <option value="{{.ID}}">{{.Name}}</option>
+        {{end}}
+      </select>
+    </div>
+    <div>
+      <label
+        for="receiver_id"
+        class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+        >Receiver</label
+      >
+      <select
+        name="receiver_id"
+        id="receiver_id"
+        class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
+        required
+      >
+        <option value="">Select a receiver</option>
+        {{range .Receivers}}
+        <option value="{{.ID}}">{{.Name}}</option>
+        {{end}}
+      </select>
+    </div>
+  </div>
+
+  <div class="space-y-4">
+    <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+      Bill Items
+    </h3>
+    <div id="bill-items-container">{{template "bill-items-select" .}}</div>
+  </div>
+
+  <div class="flex items-center space-x-4">
+    <button
+      type="submit"
+      class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800"
+    >
+      Create Bill
+    </button>
+    <a
+      href="/bills"
+      class="text-gray-500 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-primary-300 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-500 dark:hover:text-white dark:hover:bg-gray-600 dark:focus:ring-gray-600"
+    >
+      Cancel
+    </a>
+  </div>
+</form>

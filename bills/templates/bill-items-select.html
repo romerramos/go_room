@@ -1,0 +1,152 @@
+{{define "bill-items-select"}}
+<div id="bill-items-select">
+  <div class="space-y-4">
+    <div class="flex items-center space-x-4">
+      <div class="flex-1">
+        <label
+          for="item_id"
+          class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+          >Select Item</label
+        >
+        <select
+          id="item_id"
+          class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
+        >
+          <option value="">Select an item</option>
+          {{range .Items}}
+          <option value="{{.ID}}" data-price="{{.DefaultPrice}}">
+            {{.Description}} (Default: ${{printf "%.2f" .DefaultPrice}})
+          </option>
+          {{end}}
+        </select>
+      </div>
+      <div class="w-32">
+        <label
+          for="quantity"
+          class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+          >Quantity</label
+        >
+        <input
+          type="number"
+          id="quantity"
+          min="1"
+          value="1"
+          class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
+        />
+      </div>
+      <div class="w-32">
+        <label
+          for="unit_price"
+          class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+          >Unit Price</label
+        >
+        <input
+          type="number"
+          id="unit_price"
+          step="0.01"
+          class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
+        />
+      </div>
+      <div class="flex items-end">
+        <button
+          type="button"
+          class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800"
+          onclick="addBillItem()"
+        >
+          Add
+        </button>
+      </div>
+    </div>
+
+    <!-- Selected Items List -->
+    <div id="selected-items" class="space-y-2">
+      <!-- Items will be added here dynamically -->
+    </div>
+  </div>
+
+  <script>
+    // Update unit price when item is selected
+    document.getElementById("item_id").addEventListener("change", function () {
+      const selectedOption = this.options[this.selectedIndex];
+      const defaultPrice = selectedOption.dataset.price;
+      document.getElementById("unit_price").value = defaultPrice;
+    });
+
+    // Function to add item to the list
+    function addBillItem() {
+      const itemSelect = document.getElementById("item_id");
+      const quantity = document.getElementById("quantity").value;
+      const unitPrice = document.getElementById("unit_price").value;
+
+      if (!itemSelect.value || !quantity || !unitPrice) {
+        alert("Please fill in all fields");
+        return;
+      }
+
+      const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+      const description = selectedOption.text.split(" (Default")[0];
+      const subtotal = (parseFloat(quantity) * parseFloat(unitPrice)).toFixed(
+        2
+      );
+
+      const itemDiv = document.createElement("div");
+      itemDiv.className =
+        "flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-lg";
+
+      // Create hidden inputs
+      const itemIdInput = document.createElement("input");
+      itemIdInput.type = "hidden";
+      itemIdInput.name = "item_ids[]";
+      itemIdInput.value = itemSelect.value;
+
+      const quantityInput = document.createElement("input");
+      quantityInput.type = "hidden";
+      quantityInput.name = "quantities[]";
+      quantityInput.value = quantity;
+
+      const unitPriceInput = document.createElement("input");
+      unitPriceInput.type = "hidden";
+      unitPriceInput.name = "unit_prices[]";
+      unitPriceInput.value = unitPrice;
+
+      // Add inputs to the div first
+      itemDiv.appendChild(itemIdInput);
+      itemDiv.appendChild(quantityInput);
+      itemDiv.appendChild(unitPriceInput);
+
+      // Add the visual content
+      const contentDiv = document.createElement("div");
+      contentDiv.className = "flex-1";
+      contentDiv.innerHTML = `
+        <p class="text-sm font-medium text-gray-900 dark:text-white">${description}</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+          ${quantity} x $${unitPrice} = $${subtotal}
+        </p>
+      `;
+      itemDiv.appendChild(contentDiv);
+
+      // Add remove button
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className =
+        "text-red-600 hover:text-red-800 dark:text-red-500 dark:hover:text-red-700";
+      removeButton.onclick = function () {
+        itemDiv.remove();
+      };
+      removeButton.innerHTML = `
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      `;
+      itemDiv.appendChild(removeButton);
+
+      document.getElementById("selected-items").appendChild(itemDiv);
+
+      // Reset form
+      itemSelect.value = "";
+      document.getElementById("quantity").value = "1";
+      document.getElementById("unit_price").value = "";
+    }
+  </script>
+</div>
+{{end}}
