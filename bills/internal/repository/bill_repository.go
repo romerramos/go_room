@@ -206,12 +206,12 @@ func (r *SQLiteBillRepository) GetByID(id int64) (*models.Bill, error) {
 func (r *SQLiteBillRepository) GetAll() ([]*models.Bill, error) {
 	rows, err := r.db.Query(`
 		SELECT b.id, b.amount, b.due_date, b.paid, b.issuer_id, b.receiver_id, b.created_at, b.updated_at,
-			   i.name, i.vat_number, i.street, i.city, i.state, i.zip_code, i.country,
-			   r.name, r.vat_number, r.street, r.city, r.state, r.zip_code, r.country
+			   i.id, i.name, i.vat_number, i.street, i.city, i.state, i.zip_code, i.country, i.created_at, i.updated_at,
+			   r.id, r.name, r.vat_number, r.street, r.city, r.state, r.zip_code, r.country, r.created_at, r.updated_at
 		FROM bills b
 		LEFT JOIN issuers i ON b.issuer_id = i.id
 		LEFT JOIN receivers r ON b.receiver_id = r.id
-		ORDER BY b.created_at DESC
+		ORDER BY ABS(JULIANDAY(b.due_date) - JULIANDAY('now')), b.due_date ASC
 	`)
 	if err != nil {
 		return nil, err
@@ -235,6 +235,7 @@ func (r *SQLiteBillRepository) GetAll() ([]*models.Bill, error) {
 			&bill.CreatedAt,
 			&bill.UpdatedAt,
 			// Issuer fields
+			&bill.Issuer.ID,
 			&bill.Issuer.Name,
 			&bill.Issuer.VATNumber,
 			&bill.Issuer.Street,
@@ -242,7 +243,10 @@ func (r *SQLiteBillRepository) GetAll() ([]*models.Bill, error) {
 			&bill.Issuer.State,
 			&bill.Issuer.ZipCode,
 			&bill.Issuer.Country,
+			&bill.Issuer.CreatedAt,
+			&bill.Issuer.UpdatedAt,
 			// Receiver fields
+			&bill.Receiver.ID,
 			&bill.Receiver.Name,
 			&bill.Receiver.VATNumber,
 			&bill.Receiver.Street,
@@ -250,6 +254,8 @@ func (r *SQLiteBillRepository) GetAll() ([]*models.Bill, error) {
 			&bill.Receiver.State,
 			&bill.Receiver.ZipCode,
 			&bill.Receiver.Country,
+			&bill.Receiver.CreatedAt,
+			&bill.Receiver.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err

@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
@@ -78,7 +79,12 @@ func main() {
 
 	// Initialize templates - each template is now a complete HTML file
 	t := &Template{
-		templates: template.Must(template.ParseFiles(
+		templates: template.Must(template.New("").Funcs(template.FuncMap{
+			"now": time.Now,
+			"date": func(format string, t time.Time) string {
+				return t.Format(format)
+			},
+		}).ParseFiles(
 			"templates/bills.html",
 			"templates/bills-list.html",
 			"templates/bill-form.html",

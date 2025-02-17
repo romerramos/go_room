@@ -4,6 +4,7 @@
   action="/bills"
   class="space-y-6"
   enctype="application/x-www-form-urlencoded"
+  onsubmit="return handleSubmit(event)"
 >
   <div class="grid gap-4 mb-4 sm:grid-cols-2">
     <div>
@@ -16,6 +17,7 @@
         type="date"
         name="due_date"
         id="due_date"
+        value="{{.Today}}"
         class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
         required
       />
@@ -32,9 +34,10 @@
         class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
         required
       >
-        <option value="">Select an issuer</option>
-        {{range .Issuers}}
-        <option value="{{.ID}}">{{.Name}}</option>
+        {{range $index, $issuer := .Issuers}}
+        <option value="{{$issuer.ID}}" {{if eq $index 0}}selected{{end}}>
+          {{$issuer.Name}}
+        </option>
         {{end}}
       </select>
     </div>
@@ -80,3 +83,27 @@
     </a>
   </div>
 </form>
+
+<script>
+  // Function to handle form submission
+  function handleSubmit(event) {
+    // Check if there are any pending items to add
+    const itemSelect = document.getElementById("item_id");
+    const quantity = document.getElementById("quantity");
+    const unitPrice = document.getElementById("unit_price");
+
+    if (itemSelect.value && quantity.value && unitPrice.value) {
+      // There's a pending item, add it to the list
+      addBillItem();
+    }
+
+    // Check if we have at least one item
+    const selectedItems = document.getElementById("selected-items").children;
+    if (selectedItems.length === 0) {
+      alert("Please add at least one item to the bill");
+      return false;
+    }
+
+    return true;
+  }
+</script>
