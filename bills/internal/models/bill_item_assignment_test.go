@@ -4,50 +4,54 @@ import "testing"
 
 func TestNewBillItemAssignment(t *testing.T) {
 	tests := []struct {
-		name      string
-		billID    int64
-		itemID    int64
-		quantity  int
-		unitPrice float64
-		want      float64 // expected subtotal
+		name         string
+		billID       int64
+		itemID       int64
+		quantity     int
+		price        float64
+		currency     string
+		exchangeRate float64
+		wantOriginal float64
+		wantEUR      float64
 	}{
 		{
-			name:      "Simple calculation",
-			billID:    1,
-			itemID:    1,
-			quantity:  2,
-			unitPrice: 100.00,
-			want:      200.00,
+			name:         "Simple calculation EUR",
+			billID:       1,
+			itemID:       1,
+			quantity:     2,
+			price:        100.00,
+			currency:     "EUR",
+			exchangeRate: 1.0,
+			wantOriginal: 200.00,
+			wantEUR:      200.00,
 		},
 		{
-			name:      "Zero quantity",
-			billID:    1,
-			itemID:    1,
-			quantity:  0,
-			unitPrice: 100.00,
-			want:      0.00,
+			name:         "USD to EUR conversion",
+			billID:       1,
+			itemID:       1,
+			quantity:     2,
+			price:        100.00,
+			currency:     "USD",
+			exchangeRate: 0.85,
+			wantOriginal: 200.00,
+			wantEUR:      170.00,
 		},
 		{
-			name:      "Zero price",
-			billID:    1,
-			itemID:    1,
-			quantity:  2,
-			unitPrice: 0.00,
-			want:      0.00,
-		},
-		{
-			name:      "Decimal price",
-			billID:    1,
-			itemID:    1,
-			quantity:  3,
-			unitPrice: 19.99,
-			want:      59.97,
+			name:         "Zero quantity",
+			billID:       1,
+			itemID:       1,
+			quantity:     0,
+			price:        100.00,
+			currency:     "EUR",
+			exchangeRate: 1.0,
+			wantOriginal: 0.00,
+			wantEUR:      0.00,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assignment := NewBillItemAssignment(tt.billID, tt.itemID, tt.quantity, tt.unitPrice)
+			assignment := NewBillItemAssignment(tt.billID, tt.itemID, tt.quantity, tt.price, tt.currency, tt.exchangeRate)
 
 			if assignment.BillID != tt.billID {
 				t.Errorf("BillID = %v, want %v", assignment.BillID, tt.billID)
@@ -58,47 +62,70 @@ func TestNewBillItemAssignment(t *testing.T) {
 			if assignment.Quantity != tt.quantity {
 				t.Errorf("Quantity = %v, want %v", assignment.Quantity, tt.quantity)
 			}
-			if assignment.UnitPrice != tt.unitPrice {
-				t.Errorf("UnitPrice = %v, want %v", assignment.UnitPrice, tt.unitPrice)
+			if assignment.Price != tt.price {
+				t.Errorf("Price = %v, want %v", assignment.Price, tt.price)
 			}
-			if assignment.Subtotal != tt.want {
-				t.Errorf("Subtotal = %v, want %v", assignment.Subtotal, tt.want)
+			if assignment.Currency != tt.currency {
+				t.Errorf("Currency = %v, want %v", assignment.Currency, tt.currency)
+			}
+			if assignment.ExchangeRate != tt.exchangeRate {
+				t.Errorf("ExchangeRate = %v, want %v", assignment.ExchangeRate, tt.exchangeRate)
+			}
+			if assignment.OriginalAmount != tt.wantOriginal {
+				t.Errorf("OriginalAmount = %v, want %v", assignment.OriginalAmount, tt.wantOriginal)
+			}
+			if assignment.EURAmount != tt.wantEUR {
+				t.Errorf("EURAmount = %v, want %v", assignment.EURAmount, tt.wantEUR)
 			}
 		})
 	}
 }
 
-func TestUpdateSubtotal(t *testing.T) {
+func TestCalculateAmounts(t *testing.T) {
 	tests := []struct {
-		name      string
-		quantity  int
-		unitPrice float64
-		want      float64
+		name         string
+		quantity     int
+		price        float64
+		currency     string
+		exchangeRate float64
+		wantOriginal float64
+		wantEUR      float64
 	}{
 		{
-			name:      "Update after quantity change",
-			quantity:  5,
-			unitPrice: 10.00,
-			want:      50.00,
+			name:         "EUR calculation",
+			quantity:     5,
+			price:        10.00,
+			currency:     "EUR",
+			exchangeRate: 1.0,
+			wantOriginal: 50.00,
+			wantEUR:      50.00,
 		},
 		{
-			name:      "Update after price change",
-			quantity:  2,
-			unitPrice: 25.50,
-			want:      51.00,
+			name:         "USD calculation",
+			quantity:     2,
+			price:        25.50,
+			currency:     "USD",
+			exchangeRate: 0.85,
+			wantOriginal: 51.00,
+			wantEUR:      43.35,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assignment := &BillItemAssignment{
-				Quantity:  tt.quantity,
-				UnitPrice: tt.unitPrice,
+				Quantity:     tt.quantity,
+				Price:        tt.price,
+				Currency:     tt.currency,
+				ExchangeRate: tt.exchangeRate,
 			}
-			assignment.UpdateSubtotal()
+			assignment.CalculateAmounts()
 
-			if assignment.Subtotal != tt.want {
-				t.Errorf("Subtotal = %v, want %v", assignment.Subtotal, tt.want)
+			if assignment.OriginalAmount != tt.wantOriginal {
+				t.Errorf("OriginalAmount = %v, want %v", assignment.OriginalAmount, tt.wantOriginal)
+			}
+			if assignment.EURAmount != tt.wantEUR {
+				t.Errorf("EURAmount = %v, want %v", assignment.EURAmount, tt.wantEUR)
 			}
 		})
 	}

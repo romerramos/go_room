@@ -31,8 +31,9 @@ func InitBillItemDB(db *sql.DB) error {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS bill_items (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			description TEXT NOT NULL,
-			default_price REAL NOT NULL,
+			name TEXT NOT NULL,
+			price REAL NOT NULL,
+			currency TEXT NOT NULL,
 			created_at DATETIME NOT NULL,
 			updated_at DATETIME NOT NULL
 		)
@@ -61,12 +62,13 @@ func InitBillItemDB(db *sql.DB) error {
 
 func (r *SQLiteBillItemRepository) Create(item *models.BillItem) error {
 	query := `
-		INSERT INTO bill_items (description, default_price, created_at, updated_at)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO bill_items (name, price, currency, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)
 	`
 	result, err := r.db.Exec(query,
-		item.Description,
-		item.DefaultPrice,
+		item.Name,
+		item.Price,
+		item.Currency,
 		time.Now(),
 		time.Now(),
 	)
@@ -85,12 +87,13 @@ func (r *SQLiteBillItemRepository) Create(item *models.BillItem) error {
 func (r *SQLiteBillItemRepository) GetByID(id int64) (*models.BillItem, error) {
 	item := &models.BillItem{}
 	err := r.db.QueryRow(`
-		SELECT id, description, default_price, created_at, updated_at
+		SELECT id, name, price, currency, created_at, updated_at
 		FROM bill_items WHERE id = ?
 	`, id).Scan(
 		&item.ID,
-		&item.Description,
-		&item.DefaultPrice,
+		&item.Name,
+		&item.Price,
+		&item.Currency,
 		&item.CreatedAt,
 		&item.UpdatedAt,
 	)
@@ -102,8 +105,8 @@ func (r *SQLiteBillItemRepository) GetByID(id int64) (*models.BillItem, error) {
 
 func (r *SQLiteBillItemRepository) GetAll() ([]*models.BillItem, error) {
 	rows, err := r.db.Query(`
-		SELECT id, description, default_price, created_at, updated_at
-		FROM bill_items ORDER BY description ASC
+		SELECT id, name, price, currency, created_at, updated_at
+		FROM bill_items ORDER BY name ASC
 	`)
 	if err != nil {
 		return nil, err
@@ -115,8 +118,9 @@ func (r *SQLiteBillItemRepository) GetAll() ([]*models.BillItem, error) {
 		item := &models.BillItem{}
 		err := rows.Scan(
 			&item.ID,
-			&item.Description,
-			&item.DefaultPrice,
+			&item.Name,
+			&item.Price,
+			&item.Currency,
 			&item.CreatedAt,
 			&item.UpdatedAt,
 		)
@@ -132,11 +136,12 @@ func (r *SQLiteBillItemRepository) Update(item *models.BillItem) error {
 	item.UpdatedAt = time.Now()
 	_, err := r.db.Exec(`
 		UPDATE bill_items
-		SET description = ?, default_price = ?, updated_at = ?
+		SET name = ?, price = ?, currency = ?, updated_at = ?
 		WHERE id = ?
 	`,
-		item.Description,
-		item.DefaultPrice,
+		item.Name,
+		item.Price,
+		item.Currency,
 		item.UpdatedAt,
 		item.ID,
 	)

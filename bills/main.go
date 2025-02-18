@@ -25,13 +25,13 @@ type Template struct {
 func (t *Template) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
 	// List of partial templates that should be rendered directly
 	partials := map[string]bool{
-		"bills-list.html":        true,
-		"bill-items-list.html":   true,
-		"issuers-list.html":      true,
-		"receivers-list.html":    true,
-		"bill-items-select.html": true,
-		"issuers-select.html":    true,
-		"receivers-select.html":  true,
+		"bills-list":        true,
+		"bill-items-list":   true,
+		"issuers-list":      true,
+		"receivers-list":    true,
+		"bill-items-select": true,
+		"issuers-select":    true,
+		"receivers-select":  true,
 	}
 
 	// If it's a partial template, render it directly

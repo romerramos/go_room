@@ -32,7 +32,9 @@ func (h *BillItemHandler) RenderBillItems(c echo.Context) error {
 	}
 
 	return c.Render(http.StatusOK, "bill-items.html", map[string]interface{}{
-		"Items": items,
+		"Items":               items,
+		"SupportedCurrencies": models.SupportedCurrencies(),
+		"DefaultCurrency":     models.DefaultCurrency(),
 	})
 }
 
@@ -56,20 +58,28 @@ func (h *BillItemHandler) GetBillItemsSelect(c echo.Context) error {
 	}
 
 	return c.Render(http.StatusOK, "bill-items-select.html", map[string]interface{}{
-		"Items": items,
+		"Items":               items,
+		"SupportedCurrencies": models.SupportedCurrencies(),
+		"DefaultCurrency":     models.DefaultCurrency(),
 	})
 }
 
 // CreateBillItem handles the creation of a new bill item
 func (h *BillItemHandler) CreateBillItem(c echo.Context) error {
-	defaultPrice, err := strconv.ParseFloat(c.FormValue("default_price"), 64)
+	price, err := strconv.ParseFloat(c.FormValue("price"), 64)
 	if err != nil {
 		return err
 	}
 
+	currency := c.FormValue("currency")
+	if currency == "" || !models.IsSupportedCurrency(currency) {
+		currency = models.DefaultCurrency()
+	}
+
 	item := models.NewBillItem(
-		c.FormValue("description"),
-		defaultPrice,
+		c.FormValue("name"),
+		price,
+		currency,
 	)
 
 	if err := h.repo.Create(item); err != nil {
@@ -96,13 +106,19 @@ func (h *BillItemHandler) UpdateBillItem(c echo.Context) error {
 		return err
 	}
 
-	defaultPrice, err := strconv.ParseFloat(c.FormValue("default_price"), 64)
+	price, err := strconv.ParseFloat(c.FormValue("price"), 64)
 	if err != nil {
 		return err
 	}
 
-	item.Description = c.FormValue("description")
-	item.DefaultPrice = defaultPrice
+	currency := c.FormValue("currency")
+	if currency == "" || !models.IsSupportedCurrency(currency) {
+		currency = models.DefaultCurrency()
+	}
+
+	item.Name = c.FormValue("name")
+	item.Price = price
+	item.Currency = currency
 
 	if err := h.repo.Update(item); err != nil {
 		return err

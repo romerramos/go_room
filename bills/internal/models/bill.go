@@ -2,55 +2,47 @@ package models
 
 import "time"
 
-// Address represents a business address
-type Address struct {
-	Name      string `json:"name"`
-	VATNumber string `json:"vat_number"`
-	Street    string `json:"street"`
-	City      string `json:"city"`
-	State     string `json:"state"`
-	ZipCode   string `json:"zip_code"`
-	Country   string `json:"country"`
-}
-
-// Bill represents a bill entity in our system
-type Bill struct {
-	ID         int64                 `json:"id"`
-	Amount     float64               `json:"amount"`
-	DueDate    time.Time             `json:"due_date"`
-	Paid       bool                  `json:"paid"`
-	IssuerID   int64                 `json:"issuer_id"`
-	Issuer     *Issuer               `json:"issuer,omitempty"`
-	ReceiverID int64                 `json:"receiver_id"`
-	Receiver   *Receiver             `json:"receiver,omitempty"`
-	Items      []*BillItemAssignment `json:"items,omitempty"`
-	CreatedAt  time.Time             `json:"created_at"`
-	UpdatedAt  time.Time             `json:"updated_at"`
-}
-
 // NewBill creates a new Bill instance with default values
 func NewBill(dueDate time.Time, issuerID, receiverID int64) *Bill {
 	now := time.Now()
 	return &Bill{
-		Amount:     0, // Will be calculated from items
-		DueDate:    dueDate,
-		Paid:       false,
-		IssuerID:   issuerID,
-		ReceiverID: receiverID,
-		Items:      make([]*BillItemAssignment, 0),
-		Issuer:     &Issuer{},
-		Receiver:   &Receiver{},
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		DueDate:       dueDate,
+		IssuerID:      issuerID,
+		ReceiverID:    receiverID,
+		Currency:      DefaultCurrency(),
+		OriginalTotal: 0,
+		EURTotal:      0,
+		Paid:          false,
+		Items:         make([]*BillItemAssignment, 0),
+		Issuer:        &Issuer{},
+		Receiver:      &Receiver{},
+		IssuerName:    "",
+		ReceiverName:  "",
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 }
 
-// CalculateAmount calculates the total amount from bill items
-func (b *Bill) CalculateAmount() {
-	var total float64
+// CalculateTotals calculates both original and EUR totals for a bill
+func (b *Bill) CalculateTotals() {
+	var originalTotal, eurTotal float64
 	for _, item := range b.Items {
-		item.Subtotal = float64(item.Quantity) * item.UnitPrice
-		total += item.Subtotal
+		if item.Currency == b.Currency {
+			// If item currency matches bill currency, add to original total directly
+			originalTotal += item.OriginalAmount
+		} else {
+			// If item currency is different, convert to bill currency
+			// For now, we'll use the EUR amount since we don't have direct conversion rates
+			if b.Currency == DefaultCurrency() {
+				originalTotal += item.EURAmount
+			} else {
+				// If bill currency is not EUR, we should convert from EUR to bill currency
+				// TODO: Use proper exchange rate service
+				originalTotal += item.EURAmount
+			}
+		}
+		eurTotal += item.EURAmount
 	}
-	b.Amount = total
+	b.OriginalTotal = originalTotal
+	b.EURTotal = eurTotal
 }

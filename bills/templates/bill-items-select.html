@@ -14,8 +14,12 @@
         >
           <option value="">Select an item</option>
           {{range .Items}}
-          <option value="{{.ID}}" data-price="{{.DefaultPrice}}">
-            {{.Description}} (Default: ${{printf "%.2f" .DefaultPrice}})
+          <option
+            value="{{.ID}}"
+            data-price="{{.Price}}"
+            data-currency="{{.Currency}}"
+          >
+            {{.Name}} ({{.Price}} {{.Currency}})
           </option>
           {{end}}
         </select>
@@ -36,13 +40,13 @@
       </div>
       <div class="w-32">
         <label
-          for="unit_price"
+          for="price"
           class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
           >Unit Price</label
         >
         <input
           type="number"
-          id="unit_price"
+          id="price"
           step="0.01"
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
         />
@@ -53,32 +57,40 @@
     <div id="selected-items" class="space-y-2">
       <!-- Items will be added here dynamically -->
     </div>
+
+    <!-- Add Item Button -->
+    <button
+      type="button"
+      onclick="addBillItem()"
+      class="mt-4 text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800"
+    >
+      Add Item
+    </button>
   </div>
 
   <script>
     // Update unit price when item is selected
     document.getElementById("item_id").addEventListener("change", function () {
       const selectedOption = this.options[this.selectedIndex];
-      const defaultPrice = selectedOption.dataset.price;
-      document.getElementById("unit_price").value = defaultPrice;
+      const price = selectedOption.dataset.price;
+      document.getElementById("price").value = price;
     });
 
     // Function to add item to the list
     function addBillItem() {
       const itemSelect = document.getElementById("item_id");
       const quantity = document.getElementById("quantity").value;
-      const unitPrice = document.getElementById("unit_price").value;
+      const price = document.getElementById("price").value;
 
-      if (!itemSelect.value || !quantity || !unitPrice) {
+      if (!itemSelect.value || !quantity || !price) {
         alert("Please fill in all fields");
         return;
       }
 
       const selectedOption = itemSelect.options[itemSelect.selectedIndex];
-      const description = selectedOption.text.split(" (Default")[0];
-      const subtotal = (parseFloat(quantity) * parseFloat(unitPrice)).toFixed(
-        2
-      );
+      const name = selectedOption.text.split(" (")[0];
+      const currency = selectedOption.dataset.currency;
+      const subtotal = (parseFloat(quantity) * parseFloat(price)).toFixed(2);
 
       const itemDiv = document.createElement("div");
       itemDiv.className =
@@ -95,23 +107,35 @@
       quantityInput.name = "quantities[]";
       quantityInput.value = quantity;
 
-      const unitPriceInput = document.createElement("input");
-      unitPriceInput.type = "hidden";
-      unitPriceInput.name = "unit_prices[]";
-      unitPriceInput.value = unitPrice;
+      const priceInput = document.createElement("input");
+      priceInput.type = "hidden";
+      priceInput.name = "prices[]";
+      priceInput.value = price;
+
+      const currencyInput = document.createElement("input");
+      currencyInput.type = "hidden";
+      currencyInput.name = "currencies[]";
+      currencyInput.value = currency;
+
+      const exchangeRateInput = document.createElement("input");
+      exchangeRateInput.type = "hidden";
+      exchangeRateInput.name = "exchange_rates[]";
+      exchangeRateInput.value = "1.0"; // TODO: Get from exchange rate service
 
       // Add inputs to the div first
       itemDiv.appendChild(itemIdInput);
       itemDiv.appendChild(quantityInput);
-      itemDiv.appendChild(unitPriceInput);
+      itemDiv.appendChild(priceInput);
+      itemDiv.appendChild(currencyInput);
+      itemDiv.appendChild(exchangeRateInput);
 
       // Add the visual content
       const contentDiv = document.createElement("div");
       contentDiv.className = "flex-1";
       contentDiv.innerHTML = `
-        <p class="text-sm font-medium text-gray-900 dark:text-white">${description}</p>
+        <p class="text-sm font-medium text-gray-900 dark:text-white">${name}</p>
         <p class="text-sm text-gray-500 dark:text-gray-400">
-          ${quantity} x $${unitPrice} = $${subtotal}
+          ${quantity} x ${price} ${currency} = ${subtotal} ${currency}
         </p>
       `;
       itemDiv.appendChild(contentDiv);
@@ -136,7 +160,7 @@
       // Reset form
       itemSelect.value = "";
       document.getElementById("quantity").value = "1";
-      document.getElementById("unit_price").value = "";
+      document.getElementById("price").value = "";
     }
   </script>
 </div>

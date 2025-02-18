@@ -1,7 +1,9 @@
-<div id="bills-list">
+{{ define "bills-list" }}
+<div id="bills-list" hx-swap-oob="true">
   <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
     <table
       class="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400"
+      data-table="bills"
     >
       <thead
         class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400"
@@ -10,14 +12,17 @@
           <th scope="col" class="p-4">
             <span class="sr-only">Expand</span>
           </th>
-          <th scope="col" class="px-6 py-3">Amount</th>
           <th scope="col" class="px-6 py-3">Due Date</th>
-          <th scope="col" class="px-6 py-3">Status</th>
+          <th scope="col" class="px-6 py-3">Issuer</th>
+          <th scope="col" class="px-6 py-3">Receiver</th>
+          <th scope="col" class="px-6 py-3 text-right">Original Total</th>
+          <th scope="col" class="px-6 py-3 text-right">EUR Total</th>
+          <th scope="col" class="px-6 py-3 text-center">Status</th>
           <th scope="col" class="px-6 py-3 text-right">Actions</th>
         </tr>
       </thead>
       <tbody>
-        {{range .Bills}}
+        {{ if .Bills }} {{ range .Bills }}
         <tr
           class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
         >
@@ -45,18 +50,28 @@
               </svg>
             </button>
           </td>
-          <td class="px-6 py-4">${{printf "%.2f" .Amount}}</td>
-          <td class="px-6 py-4">{{.DueDate.Format "Jan 02, 2006"}}</td>
-          <td class="px-6 py-4">
+          <td class="px-6 py-4">{{.DueDate.Format "2006-01-02"}}</td>
+          <td class="px-6 py-4">{{.IssuerName}}</td>
+          <td class="px-6 py-4">{{.ReceiverName}}</td>
+          <td class="px-6 py-4 text-right">
+            {{printf "%.2f" .OriginalTotal}} {{.Currency}}
+          </td>
+          <td class="px-6 py-4 text-right">{{printf "%.2f" .EURTotal}} EUR</td>
+          <td class="px-6 py-4 text-center">
+            <span
+              class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ if .Paid }}bg-green-100 text-green-800{{ else }}bg-red-100 text-red-800{{ end }}"
+            >
+              {{ if .Paid }}Paid{{ else }}Pending{{ end }}
+            </span>
+          </td>
+          <td class="px-6 py-4 text-right space-x-2">
             <button
               hx-post="/bills/{{.ID}}/toggle"
               hx-target="#bills-list"
-              class="{{if .Paid}}bg-green-100 hover:bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-300{{else}}bg-yellow-100 hover:bg-yellow-200 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300{{end}} text-xs font-medium me-2 px-2.5 py-0.5 rounded-full"
+              class="font-medium text-blue-600 dark:text-blue-500 hover:underline"
             >
-              {{if .Paid}}Paid{{else}}Pending{{end}}
+              {{ if .Paid }}Mark Unpaid{{ else }}Mark Paid{{ end }}
             </button>
-          </td>
-          <td class="px-6 py-4 text-right">
             <button
               hx-delete="/bills/{{.ID}}"
               hx-target="#bills-list"
@@ -71,137 +86,140 @@
           class="hidden flex-1 bg-gray-50 dark:bg-gray-900"
           id="bill-{{.ID}}-details"
         >
-          <td colspan="7" class="p-4">
-            <div class="grid grid-cols-2 gap-8">
-              <!-- Issuer Information -->
-              <div>
-                <h5
-                  class="text-lg font-semibold text-gray-900 dark:text-white mb-4"
-                >
-                  Issuer Information
-                </h5>
-                <dl class="grid grid-cols-2 gap-4">
-                  <div class="col-span-2">
-                    <dt
-                      class="text-sm font-medium text-gray-500 dark:text-gray-400"
-                    >
-                      Company Name
-                    </dt>
-                    <dd class="text-sm text-gray-900 dark:text-white">
-                      {{.Issuer.Name}}
-                    </dd>
-                  </div>
-                  <div class="col-span-2">
-                    <dt
-                      class="text-sm font-medium text-gray-500 dark:text-gray-400"
-                    >
-                      VAT Number
-                    </dt>
-                    <dd class="text-sm text-gray-900 dark:text-white">
-                      {{.Issuer.VATNumber}}
-                    </dd>
-                  </div>
-                  <div class="col-span-2">
-                    <dt
-                      class="text-sm font-medium text-gray-500 dark:text-gray-400"
-                    >
-                      Address
-                    </dt>
-                    <dd class="text-sm text-gray-900 dark:text-white">
-                      {{.Issuer.Street}}<br />
-                      {{.Issuer.City}}, {{.Issuer.State}} {{.Issuer.ZipCode}}<br />
-                      {{.Issuer.Country}}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-              <!-- Receiver Information -->
-              <div>
-                <h5
-                  class="text-lg font-semibold text-gray-900 dark:text-white mb-4"
-                >
-                  Receiver Information
-                </h5>
-                <dl class="grid grid-cols-2 gap-4">
-                  <div class="col-span-2">
-                    <dt
-                      class="text-sm font-medium text-gray-500 dark:text-gray-400"
-                    >
-                      Company Name
-                    </dt>
-                    <dd class="text-sm text-gray-900 dark:text-white">
-                      {{.Receiver.Name}}
-                    </dd>
-                  </div>
-                  <div class="col-span-2">
-                    <dt
-                      class="text-sm font-medium text-gray-500 dark:text-gray-400"
-                    >
-                      VAT Number
-                    </dt>
-                    <dd class="text-sm text-gray-900 dark:text-white">
-                      {{.Receiver.VATNumber}}
-                    </dd>
-                  </div>
-                  <div class="col-span-2">
-                    <dt
-                      class="text-sm font-medium text-gray-500 dark:text-gray-400"
-                    >
-                      Address
-                    </dt>
-                    <dd class="text-sm text-gray-900 dark:text-white">
-                      {{.Receiver.Street}}<br />
-                      {{.Receiver.City}}, {{.Receiver.State}}
-                      {{.Receiver.ZipCode}}<br />
-                      {{.Receiver.Country}}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-              <!-- Bill Items -->
-              <div>
-                <h5
-                  class="text-lg font-semibold text-gray-900 dark:text-white mb-4"
+          <td colspan="8" class="p-4">
+            <dl class="grid grid-cols-2 gap-4">
+              <div class="col-span-2">
+                <dt
+                  class="text-sm font-medium text-gray-500 dark:text-gray-400"
                 >
                   Bill Items
-                </h5>
-                <div class="space-y-2">
-                  {{range .Items}}
-                  <div class="p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                    <div class="flex justify-between items-start">
-                      <div>
-                        <p
-                          class="text-sm font-medium text-gray-900 dark:text-white"
+                </dt>
+                <dd class="mt-2">
+                  <table
+                    class="min-w-full divide-y divide-gray-200 dark:divide-gray-700"
+                  >
+                    <thead>
+                      <tr>
+                        <th
+                          class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400"
                         >
-                          {{.BillItem.Description}}
-                        </p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">
-                          {{.Quantity}} x ${{printf "%.2f" .UnitPrice}} =
-                          ${{printf "%.2f" .Subtotal}}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  {{else}}
-                  <p class="text-sm text-gray-500 dark:text-gray-400">
-                    No items in this bill
-                  </p>
-                  {{end}}
-                </div>
+                          Item
+                        </th>
+                        <th
+                          class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400"
+                        >
+                          Quantity
+                        </th>
+                        <th
+                          class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400"
+                        >
+                          Price
+                        </th>
+                        <th
+                          class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400"
+                        >
+                          Original Amount
+                        </th>
+                        <th
+                          class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400"
+                        >
+                          EUR Amount
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {{ range .Items }}
+                      <tr>
+                        <td
+                          class="px-4 py-2 text-sm text-gray-900 dark:text-white"
+                        >
+                          {{.BillItem.Name}}
+                        </td>
+                        <td
+                          class="px-4 py-2 text-sm text-right text-gray-900 dark:text-white"
+                        >
+                          {{.Quantity}}
+                        </td>
+                        <td
+                          class="px-4 py-2 text-sm text-right text-gray-900 dark:text-white"
+                        >
+                          {{printf "%.2f" .Price}} {{.Currency}}
+                        </td>
+                        <td
+                          class="px-4 py-2 text-sm text-right text-gray-900 dark:text-white"
+                        >
+                          {{printf "%.2f" .OriginalAmount}} {{.Currency}}
+                        </td>
+                        <td
+                          class="px-4 py-2 text-sm text-right text-gray-900 dark:text-white"
+                        >
+                          {{printf "%.2f" .EURAmount}} EUR
+                        </td>
+                      </tr>
+                      {{ end }}
+                    </tbody>
+                  </table>
+                </dd>
               </div>
+              <div>
+                <dt
+                  class="text-sm font-medium text-gray-500 dark:text-gray-400"
+                >
+                  Created
+                </dt>
+                <dd class="text-sm text-gray-900 dark:text-white">
+                  {{.CreatedAt.Format "Jan 02, 2006 15:04"}}
+                </dd>
+              </div>
+              <div>
+                <dt
+                  class="text-sm font-medium text-gray-500 dark:text-gray-400"
+                >
+                  Last Updated
+                </dt>
+                <dd class="text-sm text-gray-900 dark:text-white">
+                  {{.UpdatedAt.Format "Jan 02, 2006 15:04"}}
+                </dd>
+              </div>
+            </dl>
+          </td>
+        </tr>
+        {{ end }} {{ else }}
+        <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
+          <td
+            colspan="8"
+            class="px-6 py-4 text-center text-gray-500 dark:text-gray-400"
+          >
+            <div class="flex flex-col items-center justify-center py-8">
+              <svg
+                class="w-12 h-12 text-gray-400 mb-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                ></path>
+              </svg>
+              <p class="text-lg font-medium mb-2">No bills found</p>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Click "Add Bill" to create your first bill!
+              </p>
+              <button
+                type="button"
+                class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800"
+                onclick="document.getElementById('add-bill-modal').classList.remove('hidden')"
+              >
+                Add Bill
+              </button>
             </div>
           </td>
         </tr>
-        {{else}}
-        <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
-          <td
-            colspan="7"
-            class="px-6 py-4 text-center text-gray-500 dark:text-gray-400"
-          >
-            No bills found. Click "Add Bill" to create your first bill!
-          </td>
-        </tr>
-        {{end}}
+        {{ end }}
       </tbody>
     </table>
   </div>
@@ -210,8 +228,9 @@
 <script>
   // Re-initialize Flowbite components after HTMX content swap
   document.body.addEventListener("htmx:afterSwap", function (evt) {
-    // Initialize all Flowbite components
-    initFlowbite();
+    if (typeof initFlowbite === "function") {
+      initFlowbite();
+    }
   });
 
   // Handle expand/collapse button rotation
@@ -225,3 +244,4 @@
     }
   });
 </script>
+{{ end }}

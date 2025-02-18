@@ -33,6 +33,39 @@
           },
         },
       };
+
+      function updateExchangeRate(select, index) {
+        const currency = select.value;
+        const exchangeRateInput = document.getElementById(
+          `exchange_rates_${index}`
+        );
+        if (currency === "{{ .DefaultCurrency }}") {
+          exchangeRateInput.value = "1.0";
+          exchangeRateInput.disabled = true;
+        } else {
+          exchangeRateInput.disabled = false;
+          // TODO: Add API call to get exchange rate
+        }
+      }
+
+      function calculateItemTotal(index) {
+        const quantity =
+          parseFloat(document.getElementById(`quantities_${index}`).value) || 0;
+        const price =
+          parseFloat(document.getElementById(`prices_${index}`).value) || 0;
+        const exchangeRate =
+          parseFloat(
+            document.getElementById(`exchange_rates_${index}`).value
+          ) || 1;
+
+        const originalTotal = quantity * price;
+        const eurTotal = originalTotal * exchangeRate;
+
+        document.getElementById(`original_total_${index}`).textContent =
+          originalTotal.toFixed(2);
+        document.getElementById(`eur_total_${index}`).textContent =
+          eurTotal.toFixed(2);
+      }
     </script>
   </head>
   <body class="bg-gray-50 dark:bg-gray-900">
@@ -182,7 +215,7 @@
           </div>
 
           <!-- Bills List -->
-          <div id="bills-list">{{template "bills-list.html" .}}</div>
+          <div id="bills-list">{{template "bills-list" .}}</div>
         </div>
 
         <!-- Add Bill Modal -->

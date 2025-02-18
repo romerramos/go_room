@@ -182,7 +182,7 @@
           </div>
 
           <!-- Bill Items List -->
-          <div id="bill-items-list">{{template "bill-items-list.html" .}}</div>
+          <div id="bill-items-list">{{template "bill-items-list" .}}</div>
         </div>
 
         <!-- Add Bill Item Modal -->
@@ -234,49 +234,66 @@
                 <div class="grid gap-4 mb-4 grid-cols-2">
                   <div class="col-span-2">
                     <label
-                      for="description"
+                      for="name"
                       class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                      >Description</label
-                    >
-                    <textarea
-                      name="description"
-                      id="description"
-                      rows="2"
-                      class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
-                      required
-                    ></textarea>
-                  </div>
-                  <div class="col-span-2">
-                    <label
-                      for="default_price"
-                      class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
-                      >Default Price</label
+                      >Name</label
                     >
                     <input
-                      type="number"
-                      name="default_price"
-                      id="default_price"
-                      step="0.01"
+                      type="text"
+                      name="name"
+                      id="name"
                       class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
                       required
                     />
                   </div>
+                  <div>
+                    <label
+                      for="price"
+                      class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                      >Price</label
+                    >
+                    <input
+                      type="number"
+                      name="price"
+                      id="price"
+                      step="0.01"
+                      min="0"
+                      class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label
+                      for="currency"
+                      class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                      >Currency</label
+                    >
+                    <select
+                      name="currency"
+                      id="currency"
+                      class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
+                      required
+                    >
+                      {{range .SupportedCurrencies}}
+                      <option
+                        value="{{.}}"
+                        {{if
+                        eq
+                        .
+                        $.DefaultCurrency}}selected{{end}}
+                      >
+                        {{.}}
+                      </option>
+                      {{end}}
+                    </select>
+                  </div>
                 </div>
-                <div class="flex items-center justify-end space-x-4">
-                  <button
-                    type="button"
-                    class="text-gray-500 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-primary-300 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-500 dark:hover:text-white dark:hover:bg-gray-600 dark:focus:ring-gray-600"
-                    onclick="document.getElementById('add-bill-item-modal').classList.add('hidden')"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800"
-                  >
-                    Add Bill Item
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  class="text-white inline-flex items-center bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800"
+                >
+                  Add Bill Item
+                </button>
               </form>
             </div>
           </div>

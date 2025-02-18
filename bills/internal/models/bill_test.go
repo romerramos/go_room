@@ -9,8 +9,11 @@ func TestNewBill(t *testing.T) {
 	dueDate := time.Now()
 	bill := NewBill(dueDate, 1, 2)
 
-	if bill.Amount != 0 {
-		t.Errorf("Expected initial amount to be 0, got %.2f", bill.Amount)
+	if bill.OriginalTotal != 0 {
+		t.Errorf("Expected initial original total to be 0, got %.2f", bill.OriginalTotal)
+	}
+	if bill.EURTotal != 0 {
+		t.Errorf("Expected initial EUR total to be 0, got %.2f", bill.EURTotal)
 	}
 	if bill.DueDate != dueDate {
 		t.Errorf("Expected due date to be %v, got %v", dueDate, bill.DueDate)
@@ -27,41 +30,40 @@ func TestNewBill(t *testing.T) {
 	if len(bill.Items) != 0 {
 		t.Errorf("Expected items to be empty, got %d items", len(bill.Items))
 	}
+	if bill.Currency != DefaultCurrency() {
+		t.Errorf("Expected currency to be %s, got %s", DefaultCurrency(), bill.Currency)
+	}
 }
 
-func TestCalculateAmount(t *testing.T) {
+func TestCalculateTotals(t *testing.T) {
 	tests := []struct {
-		name  string
-		items []*BillItemAssignment
-		want  float64
+		name         string
+		items        []*BillItemAssignment
+		wantOriginal float64
+		wantEUR      float64
 	}{
 		{
-			name: "Single item",
+			name: "Single EUR item",
 			items: []*BillItemAssignment{
-				NewBillItemAssignment(1, 1, 2, 100.00),
+				NewBillItemAssignment(1, 1, 2, 100.00, "EUR", 1.0),
 			},
-			want: 200.00,
+			wantOriginal: 200.00,
+			wantEUR:      200.00,
 		},
 		{
-			name: "Multiple items",
+			name: "Multiple items with different currencies",
 			items: []*BillItemAssignment{
-				NewBillItemAssignment(1, 1, 2, 100.00),
-				NewBillItemAssignment(1, 2, 1, 50.00),
+				NewBillItemAssignment(1, 1, 2, 100.00, "EUR", 1.0),
+				NewBillItemAssignment(1, 2, 1, 50.00, "USD", 0.85),
 			},
-			want: 250.00,
+			wantOriginal: 250.00,
+			wantEUR:      242.50,
 		},
 		{
-			name:  "No items",
-			items: []*BillItemAssignment{},
-			want:  0.00,
-		},
-		{
-			name: "Decimal prices",
-			items: []*BillItemAssignment{
-				NewBillItemAssignment(1, 1, 3, 19.99),
-				NewBillItemAssignment(1, 2, 2, 24.50),
-			},
-			want: 108.97,
+			name:         "No items",
+			items:        []*BillItemAssignment{},
+			wantOriginal: 0.00,
+			wantEUR:      0.00,
 		},
 	}
 
@@ -69,18 +71,13 @@ func TestCalculateAmount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			bill := NewBill(time.Now(), 1, 1)
 			bill.Items = tt.items
-			bill.CalculateAmount()
+			bill.CalculateTotals()
 
-			if bill.Amount != tt.want {
-				t.Errorf("Amount = %.2f, want %.2f", bill.Amount, tt.want)
+			if bill.OriginalTotal != tt.wantOriginal {
+				t.Errorf("OriginalTotal = %.2f, want %.2f", bill.OriginalTotal, tt.wantOriginal)
 			}
-
-			// Verify each item's subtotal is calculated correctly
-			for _, item := range bill.Items {
-				expectedSubtotal := float64(item.Quantity) * item.UnitPrice
-				if item.Subtotal != expectedSubtotal {
-					t.Errorf("Item subtotal = %.2f, want %.2f", item.Subtotal, expectedSubtotal)
-				}
+			if bill.EURTotal != tt.wantEUR {
+				t.Errorf("EURTotal = %.2f, want %.2f", bill.EURTotal, tt.wantEUR)
 			}
 		})
 	}

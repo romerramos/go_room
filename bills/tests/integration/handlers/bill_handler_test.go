@@ -57,7 +57,7 @@ func createTestData(t *testing.T, db *sql.DB) (int64, int64, int64) {
 
 	// Create test bill item
 	billItemRepo := repository.NewSQLiteBillItemRepository(db)
-	billItem := models.NewBillItem("Test Item", 100.00)
+	billItem := models.NewBillItem("Test Item", 100.00, models.DefaultCurrency())
 	if err := billItemRepo.Create(billItem); err != nil {
 		t.Fatalf("Failed to create test bill item: %v", err)
 	}
@@ -92,7 +92,9 @@ func TestCreateBill(t *testing.T) {
 	form.Set("receiver_id", fmt.Sprintf("%d", receiverID))
 	form.Add("item_ids[]", fmt.Sprintf("%d", itemID))
 	form.Add("quantities[]", "2")
-	form.Add("unit_prices[]", "100.00")
+	form.Add("prices[]", "100.00")
+	form.Add("currencies[]", models.DefaultCurrency())
+	form.Add("exchange_rates[]", "1.0")
 
 	// Create request
 	req := httptest.NewRequest(http.MethodPost, "/bills", strings.NewReader(form.Encode()))
@@ -116,8 +118,11 @@ func TestCreateBill(t *testing.T) {
 	}
 
 	bill := bills[0]
-	if bill.Amount != 200.00 {
-		t.Errorf("Expected amount 200.00, got %.2f", bill.Amount)
+	if bill.OriginalTotal != 200.00 {
+		t.Errorf("Expected original total 200.00, got %.2f", bill.OriginalTotal)
+	}
+	if bill.EURTotal != 200.00 {
+		t.Errorf("Expected EUR total 200.00, got %.2f", bill.EURTotal)
 	}
 	if bill.IssuerID != issuerID {
 		t.Errorf("Expected issuer ID %d, got %d", issuerID, bill.IssuerID)
@@ -137,10 +142,13 @@ func TestCreateBill(t *testing.T) {
 	if item.Quantity != 2 {
 		t.Errorf("Expected quantity 2, got %d", item.Quantity)
 	}
-	if item.UnitPrice != 100.00 {
-		t.Errorf("Expected unit price 100.00, got %.2f", item.UnitPrice)
+	if item.Price != 100.00 {
+		t.Errorf("Expected price 100.00, got %.2f", item.Price)
 	}
-	if item.Subtotal != 200.00 {
-		t.Errorf("Expected subtotal 200.00, got %.2f", item.Subtotal)
+	if item.OriginalAmount != 200.00 {
+		t.Errorf("Expected original amount 200.00, got %.2f", item.OriginalAmount)
+	}
+	if item.EURAmount != 200.00 {
+		t.Errorf("Expected EUR amount 200.00, got %.2f", item.EURAmount)
 	}
 }

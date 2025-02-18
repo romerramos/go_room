@@ -1,3 +1,4 @@
+{{define "bill-items-list"}}
 <div id="bill-items-list">
   <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
     <table
@@ -10,8 +11,9 @@
           <th scope="col" class="p-4">
             <span class="sr-only">Expand</span>
           </th>
-          <th scope="col" class="px-6 py-3">Description</th>
-          <th scope="col" class="px-6 py-3">Default Price</th>
+          <th scope="col" class="px-6 py-3">Name</th>
+          <th scope="col" class="px-6 py-3">Price</th>
+          <th scope="col" class="px-6 py-3">Currency</th>
           <th scope="col" class="px-6 py-3 text-right">Actions</th>
         </tr>
       </thead>
@@ -48,9 +50,10 @@
             scope="row"
             class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white"
           >
-            {{.Description}}
+            {{.Name}}
           </th>
-          <td class="px-6 py-4">${{printf "%.2f" .DefaultPrice}}</td>
+          <td class="px-6 py-4">{{printf "%.2f" .Price}}</td>
+          <td class="px-6 py-4">{{.Currency}}</td>
           <td class="px-6 py-4 text-right">
             <button
               hx-delete="/bill-items/{{.ID}}"
@@ -66,7 +69,7 @@
           class="hidden flex-1 bg-gray-50 dark:bg-gray-900"
           id="item-{{.ID}}-details"
         >
-          <td colspan="4" class="p-4">
+          <td colspan="5" class="p-4">
             <dl class="grid grid-cols-2 gap-4">
               <div>
                 <dt
@@ -94,7 +97,7 @@
         {{else}}
         <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
           <td
-            colspan="4"
+            colspan="5"
             class="px-6 py-4 text-center text-gray-500 dark:text-gray-400"
           >
             No bill items found. Click "Add Bill Item" to create your first
@@ -125,3 +128,4 @@
     }
   });
 </script>
+{{end}}

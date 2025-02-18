@@ -2,7 +2,6 @@ package repository
 
 import (
 	"database/sql"
-	"fmt"
 	"time"
 
 	"bills/internal/models"
@@ -55,20 +54,24 @@ func InitDB(dbPath string) (*sql.DB, error) {
 }
 
 func (r *SQLiteBillRepository) Create(bill *models.Bill) error {
-	// Start a transaction
 	tx, err := r.db.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return err
 	}
-	defer tx.Rollback() // Rollback if we return with error
+	defer tx.Rollback()
 
-	// Insert the bill
-	result, err := tx.Exec(`
-		INSERT INTO bills (amount, due_date, paid, issuer_id, receiver_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`,
-		bill.Amount,
+	// Insert bill
+	query := `
+		INSERT INTO bills (
+			due_date, currency, original_total, eur_total, paid,
+			issuer_id, receiver_id, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+	result, err := tx.Exec(query,
 		bill.DueDate,
+		bill.Currency,
+		bill.OriginalTotal,
+		bill.EURTotal,
 		bill.Paid,
 		bill.IssuerID,
 		bill.ReceiverID,
@@ -76,83 +79,69 @@ func (r *SQLiteBillRepository) Create(bill *models.Bill) error {
 		time.Now(),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to insert bill: %w", err)
+		return err
 	}
 
-	// Get the bill ID
 	billID, err := result.LastInsertId()
 	if err != nil {
-		return fmt.Errorf("failed to get bill ID: %w", err)
+		return err
 	}
 	bill.ID = billID
 
-	// Insert bill item assignments
+	// Insert bill items
 	for _, item := range bill.Items {
 		item.BillID = billID
-		_, err = tx.Exec(`
-			INSERT INTO bill_item_assignments (bill_id, item_id, quantity, unit_price, subtotal, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`,
+		query = `
+			INSERT INTO bill_item_assignments (
+				bill_id, item_id, quantity, price, currency,
+				exchange_rate, original_amount, eur_amount,
+				created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`
+		_, err = tx.Exec(query,
 			item.BillID,
 			item.ItemID,
 			item.Quantity,
-			item.UnitPrice,
-			item.Subtotal,
+			item.Price,
+			item.Currency,
+			item.ExchangeRate,
+			item.OriginalAmount,
+			item.EURAmount,
 			time.Now(),
 			time.Now(),
 		)
 		if err != nil {
-			return fmt.Errorf("failed to insert bill item assignment: %w", err)
+			return err
 		}
 	}
 
-	// Commit the transaction
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
+	return tx.Commit()
 }
 
 func (r *SQLiteBillRepository) GetByID(id int64) (*models.Bill, error) {
-	bill := &models.Bill{
-		Issuer:   &models.Issuer{},
-		Receiver: &models.Receiver{},
-		Items:    make([]*models.BillItemAssignment, 0),
-	}
+	bill := &models.Bill{}
 	err := r.db.QueryRow(`
-		SELECT b.id, b.amount, b.due_date, b.paid, b.issuer_id, b.receiver_id, b.created_at, b.updated_at,
-			   i.name, i.vat_number, i.street, i.city, i.state, i.zip_code, i.country,
-			   r.name, r.vat_number, r.street, r.city, r.state, r.zip_code, r.country
+		SELECT b.id, b.due_date, b.paid, b.issuer_id, b.receiver_id,
+			   b.currency, b.original_total, b.eur_total,
+			   b.created_at, b.updated_at,
+			   i.name as issuer_name, r.name as receiver_name
 		FROM bills b
 		LEFT JOIN issuers i ON b.issuer_id = i.id
 		LEFT JOIN receivers r ON b.receiver_id = r.id
 		WHERE b.id = ?
 	`, id).Scan(
 		&bill.ID,
-		&bill.Amount,
 		&bill.DueDate,
 		&bill.Paid,
 		&bill.IssuerID,
 		&bill.ReceiverID,
+		&bill.Currency,
+		&bill.OriginalTotal,
+		&bill.EURTotal,
 		&bill.CreatedAt,
 		&bill.UpdatedAt,
-		// Issuer fields
-		&bill.Issuer.Name,
-		&bill.Issuer.VATNumber,
-		&bill.Issuer.Street,
-		&bill.Issuer.City,
-		&bill.Issuer.State,
-		&bill.Issuer.ZipCode,
-		&bill.Issuer.Country,
-		// Receiver fields
-		&bill.Receiver.Name,
-		&bill.Receiver.VATNumber,
-		&bill.Receiver.Street,
-		&bill.Receiver.City,
-		&bill.Receiver.State,
-		&bill.Receiver.ZipCode,
-		&bill.Receiver.Country,
+		&bill.IssuerName,
+		&bill.ReceiverName,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -161,10 +150,12 @@ func (r *SQLiteBillRepository) GetByID(id int64) (*models.Bill, error) {
 		return nil, err
 	}
 
-	// Load bill items
+	// Load items
 	rows, err := r.db.Query(`
-		SELECT a.id, a.bill_id, a.item_id, a.quantity, a.unit_price, a.subtotal, a.created_at, a.updated_at,
-			   i.id, i.description, i.default_price, i.created_at, i.updated_at
+		SELECT a.id, a.bill_id, a.item_id, a.quantity, a.price,
+			   a.currency, a.exchange_rate, a.original_amount, a.eur_amount,
+			   a.created_at, a.updated_at,
+			   i.id, i.name, i.price, i.currency, i.created_at, i.updated_at
 		FROM bill_item_assignments a
 		LEFT JOIN bill_items i ON a.item_id = i.id
 		WHERE a.bill_id = ?
@@ -184,13 +175,17 @@ func (r *SQLiteBillRepository) GetByID(id int64) (*models.Bill, error) {
 			&assignment.BillID,
 			&assignment.ItemID,
 			&assignment.Quantity,
-			&assignment.UnitPrice,
-			&assignment.Subtotal,
+			&assignment.Price,
+			&assignment.Currency,
+			&assignment.ExchangeRate,
+			&assignment.OriginalAmount,
+			&assignment.EURAmount,
 			&assignment.CreatedAt,
 			&assignment.UpdatedAt,
 			&assignment.BillItem.ID,
-			&assignment.BillItem.Description,
-			&assignment.BillItem.DefaultPrice,
+			&assignment.BillItem.Name,
+			&assignment.BillItem.Price,
+			&assignment.BillItem.Currency,
 			&assignment.BillItem.CreatedAt,
 			&assignment.BillItem.UpdatedAt,
 		)
@@ -205,13 +200,14 @@ func (r *SQLiteBillRepository) GetByID(id int64) (*models.Bill, error) {
 
 func (r *SQLiteBillRepository) GetAll() ([]*models.Bill, error) {
 	rows, err := r.db.Query(`
-		SELECT b.id, b.amount, b.due_date, b.paid, b.issuer_id, b.receiver_id, b.created_at, b.updated_at,
-			   i.id, i.name, i.vat_number, i.street, i.city, i.state, i.zip_code, i.country, i.created_at, i.updated_at,
-			   r.id, r.name, r.vat_number, r.street, r.city, r.state, r.zip_code, r.country, r.created_at, r.updated_at
+		SELECT b.id, b.due_date, b.paid, b.issuer_id, b.receiver_id,
+			   b.currency, b.original_total, b.eur_total,
+			   b.created_at, b.updated_at,
+			   i.name as issuer_name, r.name as receiver_name
 		FROM bills b
 		LEFT JOIN issuers i ON b.issuer_id = i.id
 		LEFT JOIN receivers r ON b.receiver_id = r.id
-		ORDER BY ABS(JULIANDAY(b.due_date) - JULIANDAY('now')), b.due_date ASC
+		ORDER BY b.due_date DESC
 	`)
 	if err != nil {
 		return nil, err
@@ -220,51 +216,31 @@ func (r *SQLiteBillRepository) GetAll() ([]*models.Bill, error) {
 
 	var bills []*models.Bill
 	for rows.Next() {
-		bill := &models.Bill{
-			Issuer:   &models.Issuer{},
-			Receiver: &models.Receiver{},
-			Items:    make([]*models.BillItemAssignment, 0),
-		}
+		bill := &models.Bill{}
 		err := rows.Scan(
 			&bill.ID,
-			&bill.Amount,
 			&bill.DueDate,
 			&bill.Paid,
 			&bill.IssuerID,
 			&bill.ReceiverID,
+			&bill.Currency,
+			&bill.OriginalTotal,
+			&bill.EURTotal,
 			&bill.CreatedAt,
 			&bill.UpdatedAt,
-			// Issuer fields
-			&bill.Issuer.ID,
-			&bill.Issuer.Name,
-			&bill.Issuer.VATNumber,
-			&bill.Issuer.Street,
-			&bill.Issuer.City,
-			&bill.Issuer.State,
-			&bill.Issuer.ZipCode,
-			&bill.Issuer.Country,
-			&bill.Issuer.CreatedAt,
-			&bill.Issuer.UpdatedAt,
-			// Receiver fields
-			&bill.Receiver.ID,
-			&bill.Receiver.Name,
-			&bill.Receiver.VATNumber,
-			&bill.Receiver.Street,
-			&bill.Receiver.City,
-			&bill.Receiver.State,
-			&bill.Receiver.ZipCode,
-			&bill.Receiver.Country,
-			&bill.Receiver.CreatedAt,
-			&bill.Receiver.UpdatedAt,
+			&bill.IssuerName,
+			&bill.ReceiverName,
 		)
 		if err != nil {
 			return nil, err
 		}
 
-		// Load bill items for each bill
+		// Load items for each bill
 		itemRows, err := r.db.Query(`
-			SELECT a.id, a.bill_id, a.item_id, a.quantity, a.unit_price, a.subtotal, a.created_at, a.updated_at,
-				   i.id, i.description, i.default_price, i.created_at, i.updated_at
+			SELECT a.id, a.bill_id, a.item_id, a.quantity, a.price,
+				   a.currency, a.exchange_rate, a.original_amount, a.eur_amount,
+				   a.created_at, a.updated_at,
+				   i.id, i.name, i.price, i.currency, i.created_at, i.updated_at
 			FROM bill_item_assignments a
 			LEFT JOIN bill_items i ON a.item_id = i.id
 			WHERE a.bill_id = ?
@@ -284,13 +260,17 @@ func (r *SQLiteBillRepository) GetAll() ([]*models.Bill, error) {
 				&assignment.BillID,
 				&assignment.ItemID,
 				&assignment.Quantity,
-				&assignment.UnitPrice,
-				&assignment.Subtotal,
+				&assignment.Price,
+				&assignment.Currency,
+				&assignment.ExchangeRate,
+				&assignment.OriginalAmount,
+				&assignment.EURAmount,
 				&assignment.CreatedAt,
 				&assignment.UpdatedAt,
 				&assignment.BillItem.ID,
-				&assignment.BillItem.Description,
-				&assignment.BillItem.DefaultPrice,
+				&assignment.BillItem.Name,
+				&assignment.BillItem.Price,
+				&assignment.BillItem.Currency,
 				&assignment.BillItem.CreatedAt,
 				&assignment.BillItem.UpdatedAt,
 			)
@@ -312,11 +292,14 @@ func (r *SQLiteBillRepository) Update(bill *models.Bill) error {
 	bill.UpdatedAt = time.Now()
 	_, err := r.db.Exec(`
 		UPDATE bills
-		SET amount = ?, due_date = ?, paid = ?, issuer_id = ?, receiver_id = ?, updated_at = ?
+		SET due_date = ?, currency = ?, original_total = ?, eur_total = ?,
+			paid = ?, issuer_id = ?, receiver_id = ?, updated_at = ?
 		WHERE id = ?
 	`,
-		bill.Amount,
 		bill.DueDate,
+		bill.Currency,
+		bill.OriginalTotal,
+		bill.EURTotal,
 		bill.Paid,
 		bill.IssuerID,
 		bill.ReceiverID,

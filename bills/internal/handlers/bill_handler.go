@@ -3,7 +3,6 @@ package handlers
 import (
 	"bills/internal/models"
 	"bills/internal/repository"
-	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
@@ -64,11 +63,13 @@ func (h *BillHandler) RenderBills(c echo.Context) error {
 	}
 
 	return c.Render(http.StatusOK, "bills.html", map[string]interface{}{
-		"Bills":     bills,
-		"Receivers": receivers,
-		"Issuers":   issuers,
-		"Items":     billItems,
-		"Today":     time.Now().Format("2006-01-02"),
+		"Bills":               bills,
+		"Receivers":           receivers,
+		"Issuers":             issuers,
+		"Items":               billItems,
+		"Today":               time.Now().Format("2006-01-02"),
+		"SupportedCurrencies": models.SupportedCurrencies(),
+		"DefaultCurrency":     models.DefaultCurrency(),
 	})
 }
 
@@ -86,30 +87,19 @@ func (h *BillHandler) GetBillsList(c echo.Context) error {
 
 // CreateBill handles the creation of a new bill
 func (h *BillHandler) CreateBill(c echo.Context) error {
-	// Log form data
-	fmt.Printf("\nForm Data:\n")
-	fmt.Printf("due_date: %s\n", c.FormValue("due_date"))
-	fmt.Printf("issuer_id: %s\n", c.FormValue("issuer_id"))
-	fmt.Printf("receiver_id: %s\n", c.FormValue("receiver_id"))
-	fmt.Printf("item_ids: %v\n", c.Request().Form["item_ids[]"])
-	fmt.Printf("quantities: %v\n", c.Request().Form["quantities[]"])
-	fmt.Printf("unit_prices: %v\n", c.Request().Form["unit_prices[]"])
-
+	// Parse form data
 	dueDate, err := time.Parse("2006-01-02", c.FormValue("due_date"))
 	if err != nil {
-		fmt.Printf("Error parsing due date: %v\n", err)
 		return err
 	}
 
 	issuerID, err := strconv.ParseInt(c.FormValue("issuer_id"), 10, 64)
 	if err != nil {
-		fmt.Printf("Error parsing issuer_id: %v\n", err)
 		return err
 	}
 
 	receiverID, err := strconv.ParseInt(c.FormValue("receiver_id"), 10, 64)
 	if err != nil {
-		fmt.Printf("Error parsing receiver_id: %v\n", err)
 		return err
 	}
 
@@ -119,46 +109,80 @@ func (h *BillHandler) CreateBill(c echo.Context) error {
 	// Parse bill item assignments
 	itemIDs := c.Request().Form["item_ids[]"]
 	quantities := c.Request().Form["quantities[]"]
-	unitPrices := c.Request().Form["unit_prices[]"]
+	prices := c.Request().Form["prices[]"]
+	currencies := c.Request().Form["currencies[]"]
+	exchangeRates := c.Request().Form["exchange_rates[]"]
 
-	fmt.Printf("\nProcessing %d items\n", len(itemIDs))
+	// Track unique currencies
+	uniqueCurrencies := make(map[string]bool)
 
 	// Create bill item assignments
 	for i := range itemIDs {
 		itemID, err := strconv.ParseInt(itemIDs[i], 10, 64)
 		if err != nil {
-			fmt.Printf("Error parsing item_id[%d]: %v\n", i, err)
 			continue
 		}
 
 		quantity, err := strconv.Atoi(quantities[i])
 		if err != nil {
-			fmt.Printf("Error parsing quantity[%d]: %v\n", i, err)
 			continue
 		}
 
-		unitPrice, err := strconv.ParseFloat(unitPrices[i], 64)
+		price, err := strconv.ParseFloat(prices[i], 64)
 		if err != nil {
-			fmt.Printf("Error parsing unit_price[%d]: %v\n", i, err)
 			continue
 		}
 
-		assignment := models.NewBillItemAssignment(0, itemID, quantity, unitPrice)
+		currency := currencies[i]
+		if currency == "" || !models.IsSupportedCurrency(currency) {
+			currency = models.DefaultCurrency()
+		}
+		uniqueCurrencies[currency] = true
+
+		exchangeRate, err := strconv.ParseFloat(exchangeRates[i], 64)
+		if err != nil || exchangeRate <= 0 {
+			if models.IsDefaultCurrency(currency) {
+				exchangeRate = 1.0
+			} else {
+				// TODO: Get exchange rate from service
+				exchangeRate = 1.0
+			}
+		}
+
+		assignment := models.NewBillItemAssignment(0, itemID, quantity, price, currency, exchangeRate)
 		bill.Items = append(bill.Items, assignment)
-		fmt.Printf("Added item: ID=%d, Quantity=%d, UnitPrice=%.2f\n", itemID, quantity, unitPrice)
 	}
 
-	// Calculate total amount from items
-	bill.CalculateAmount()
-	fmt.Printf("\nCalculated total amount: %.2f\n", bill.Amount)
+	// Set bill currency based on items
+	if len(uniqueCurrencies) == 1 {
+		// If all items have the same currency, use that
+		for currency := range uniqueCurrencies {
+			bill.Currency = currency
+		}
+	} else {
+		// If items have different currencies, use EUR
+		bill.Currency = models.DefaultCurrency()
+	}
+
+	// Calculate totals
+	bill.CalculateTotals()
 
 	// Save the bill
 	if err := h.repo.Create(bill); err != nil {
-		fmt.Printf("Error creating bill: %v\n", err)
 		return err
 	}
 
-	fmt.Printf("Successfully created bill with ID: %d\n", bill.ID)
+	// Get issuer and receiver names
+	issuer, err := h.issuerRepo.GetByID(issuerID)
+	if err != nil {
+		return err
+	}
+	receiver, err := h.receiverRepo.GetByID(receiverID)
+	if err != nil {
+		return err
+	}
+	bill.IssuerName = issuer.Name
+	bill.ReceiverName = receiver.Name
 
 	// If it's an HTMX request, return the updated list
 	if c.Request().Header.Get("HX-Request") == "true" {
@@ -205,5 +229,11 @@ func (h *BillHandler) DeleteBill(c echo.Context) error {
 		return err
 	}
 
-	return h.GetBillsList(c)
+	// If it's an HTMX request, return the updated list
+	if c.Request().Header.Get("HX-Request") == "true" {
+		return h.GetBillsList(c)
+	}
+
+	// For regular requests, redirect to the root URL
+	return c.Redirect(http.StatusSeeOther, "/")
 }

@@ -28,19 +28,21 @@ func NewSQLiteBillItemAssignmentRepository(db *sql.DB) *SQLiteBillItemAssignment
 }
 
 func (r *SQLiteBillItemAssignmentRepository) Create(assignment *models.BillItemAssignment) error {
-	// Calculate subtotal before saving
-	assignment.Subtotal = float64(assignment.Quantity) * assignment.UnitPrice
-
 	query := `
-		INSERT INTO bill_item_assignments (bill_id, item_id, quantity, unit_price, subtotal, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO bill_item_assignments (
+			bill_id, item_id, quantity, price, currency, exchange_rate,
+			original_amount, eur_amount, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	result, err := r.db.Exec(query,
 		assignment.BillID,
 		assignment.ItemID,
 		assignment.Quantity,
-		assignment.UnitPrice,
-		assignment.Subtotal,
+		assignment.Price,
+		assignment.Currency,
+		assignment.ExchangeRate,
+		assignment.OriginalAmount,
+		assignment.EURAmount,
 		time.Now(),
 		time.Now(),
 	)
@@ -57,10 +59,13 @@ func (r *SQLiteBillItemAssignmentRepository) Create(assignment *models.BillItemA
 }
 
 func (r *SQLiteBillItemAssignmentRepository) GetByID(id int64) (*models.BillItemAssignment, error) {
-	assignment := &models.BillItemAssignment{}
+	assignment := &models.BillItemAssignment{
+		BillItem: &models.BillItem{},
+	}
 	err := r.db.QueryRow(`
-		SELECT a.id, a.bill_id, a.item_id, a.quantity, a.unit_price, a.subtotal, a.created_at, a.updated_at,
-			   i.description, i.default_price, i.created_at, i.updated_at
+		SELECT a.id, a.bill_id, a.item_id, a.quantity, a.price, a.currency,
+			   a.exchange_rate, a.original_amount, a.eur_amount, a.created_at, a.updated_at,
+			   i.name, i.price, i.currency, i.created_at, i.updated_at
 		FROM bill_item_assignments a
 		LEFT JOIN bill_items i ON a.item_id = i.id
 		WHERE a.id = ?
@@ -69,12 +74,16 @@ func (r *SQLiteBillItemAssignmentRepository) GetByID(id int64) (*models.BillItem
 		&assignment.BillID,
 		&assignment.ItemID,
 		&assignment.Quantity,
-		&assignment.UnitPrice,
-		&assignment.Subtotal,
+		&assignment.Price,
+		&assignment.Currency,
+		&assignment.ExchangeRate,
+		&assignment.OriginalAmount,
+		&assignment.EURAmount,
 		&assignment.CreatedAt,
 		&assignment.UpdatedAt,
-		&assignment.BillItem.Description,
-		&assignment.BillItem.DefaultPrice,
+		&assignment.BillItem.Name,
+		&assignment.BillItem.Price,
+		&assignment.BillItem.Currency,
 		&assignment.BillItem.CreatedAt,
 		&assignment.BillItem.UpdatedAt,
 	)
@@ -86,8 +95,9 @@ func (r *SQLiteBillItemAssignmentRepository) GetByID(id int64) (*models.BillItem
 
 func (r *SQLiteBillItemAssignmentRepository) GetByBillID(billID int64) ([]*models.BillItemAssignment, error) {
 	rows, err := r.db.Query(`
-		SELECT a.id, a.bill_id, a.item_id, a.quantity, a.unit_price, a.subtotal, a.created_at, a.updated_at,
-			   i.id, i.description, i.default_price, i.created_at, i.updated_at
+		SELECT a.id, a.bill_id, a.item_id, a.quantity, a.price, a.currency,
+			   a.exchange_rate, a.original_amount, a.eur_amount, a.created_at, a.updated_at,
+			   i.id, i.name, i.price, i.currency, i.created_at, i.updated_at
 		FROM bill_item_assignments a
 		LEFT JOIN bill_items i ON a.item_id = i.id
 		WHERE a.bill_id = ?
@@ -108,13 +118,17 @@ func (r *SQLiteBillItemAssignmentRepository) GetByBillID(billID int64) ([]*model
 			&assignment.BillID,
 			&assignment.ItemID,
 			&assignment.Quantity,
-			&assignment.UnitPrice,
-			&assignment.Subtotal,
+			&assignment.Price,
+			&assignment.Currency,
+			&assignment.ExchangeRate,
+			&assignment.OriginalAmount,
+			&assignment.EURAmount,
 			&assignment.CreatedAt,
 			&assignment.UpdatedAt,
 			&assignment.BillItem.ID,
-			&assignment.BillItem.Description,
-			&assignment.BillItem.DefaultPrice,
+			&assignment.BillItem.Name,
+			&assignment.BillItem.Price,
+			&assignment.BillItem.Currency,
 			&assignment.BillItem.CreatedAt,
 			&assignment.BillItem.UpdatedAt,
 		)
@@ -130,12 +144,16 @@ func (r *SQLiteBillItemAssignmentRepository) Update(assignment *models.BillItemA
 	assignment.UpdatedAt = time.Now()
 	_, err := r.db.Exec(`
 		UPDATE bill_item_assignments
-		SET quantity = ?, unit_price = ?, subtotal = ?, updated_at = ?
+		SET quantity = ?, price = ?, currency = ?, exchange_rate = ?,
+			original_amount = ?, eur_amount = ?, updated_at = ?
 		WHERE id = ?
 	`,
 		assignment.Quantity,
-		assignment.UnitPrice,
-		assignment.Subtotal,
+		assignment.Price,
+		assignment.Currency,
+		assignment.ExchangeRate,
+		assignment.OriginalAmount,
+		assignment.EURAmount,
 		assignment.UpdatedAt,
 		assignment.ID,
 	)

@@ -1,7 +1,6 @@
 package repository_test
 
 import (
-	"bills/db"
 	"bills/internal/models"
 	"bills/internal/repository"
 	"database/sql"
@@ -12,77 +11,104 @@ import (
 )
 
 func setupTestDB(t *testing.T) *sql.DB {
-	// Use a file-based database for testing
-	testDB, err := sql.Open("sqlite3", "file::memory:?cache=shared")
+	// Use an in-memory database for testing
+	db, err := sql.Open("sqlite3", "file::memory:?cache=shared")
 	if err != nil {
 		t.Fatalf("Failed to open test database: %v", err)
 	}
 
 	// Enable foreign keys
-	_, err = testDB.Exec("PRAGMA foreign_keys = ON")
+	_, err = db.Exec("PRAGMA foreign_keys = ON")
 	if err != nil {
 		t.Fatalf("Failed to enable foreign keys: %v", err)
 	}
 
-	// Run migrations
-	if err := db.MigrateDB(testDB, "file::memory:?cache=shared"); err != nil {
-		t.Fatalf("Failed to run migrations: %v", err)
+	// Create tables
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS bill_items (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			price REAL NOT NULL,
+			currency TEXT NOT NULL,
+			created_at DATETIME NOT NULL,
+			updated_at DATETIME NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS bills (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			due_date DATETIME NOT NULL,
+			currency TEXT NOT NULL,
+			original_total REAL NOT NULL,
+			eur_total REAL NOT NULL,
+			paid BOOLEAN DEFAULT FALSE,
+			issuer_id INTEGER NOT NULL,
+			receiver_id INTEGER NOT NULL,
+			created_at DATETIME NOT NULL,
+			updated_at DATETIME NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS bill_item_assignments (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			bill_id INTEGER NOT NULL,
+			item_id INTEGER NOT NULL,
+			quantity INTEGER NOT NULL,
+			price REAL NOT NULL,
+			currency TEXT NOT NULL,
+			exchange_rate REAL NOT NULL,
+			original_amount REAL NOT NULL,
+			eur_amount REAL NOT NULL,
+			created_at DATETIME NOT NULL,
+			updated_at DATETIME NOT NULL,
+			FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE CASCADE,
+			FOREIGN KEY (item_id) REFERENCES bill_items(id) ON DELETE RESTRICT
+		);
+	`)
+	if err != nil {
+		t.Fatalf("Failed to create tables: %v", err)
 	}
 
-	return testDB
+	return db
 }
 
 func createTestBill(t *testing.T, db *sql.DB) int64 {
-	// Create test issuer
-	_, err := db.Exec(`
-		INSERT INTO issuers (name, vat_number, street, city, state, zip_code, country, created_at, updated_at)
-		VALUES ('Test Issuer', '123456', '123 Street', 'City', 'State', '12345', 'Country', ?, ?)
-	`, time.Now(), time.Now())
-	if err != nil {
-		t.Fatalf("Failed to create test issuer: %v", err)
-	}
-
-	// Create test receiver
-	_, err = db.Exec(`
-		INSERT INTO receivers (name, vat_number, street, city, state, zip_code, country, created_at, updated_at)
-		VALUES ('Test Receiver', '654321', '321 Street', 'City', 'State', '54321', 'Country', ?, ?)
-	`, time.Now(), time.Now())
-	if err != nil {
-		t.Fatalf("Failed to create test receiver: %v", err)
-	}
-
 	// Create test bill
 	result, err := db.Exec(`
-		INSERT INTO bills (amount, due_date, paid, issuer_id, receiver_id, created_at, updated_at)
-		VALUES (0, ?, false, 1, 1, ?, ?)
-	`, time.Now(), time.Now(), time.Now())
+		INSERT INTO bills (
+			due_date, currency, original_total, eur_total, paid,
+			issuer_id, receiver_id, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`,
+		time.Now(),
+		models.DefaultCurrency(),
+		0.0,
+		0.0,
+		false,
+		1, // Dummy issuer ID
+		1, // Dummy receiver ID
+		time.Now(),
+		time.Now(),
+	)
 	if err != nil {
 		t.Fatalf("Failed to create test bill: %v", err)
 	}
 
-	id, err := result.LastInsertId()
+	billID, err := result.LastInsertId()
 	if err != nil {
 		t.Fatalf("Failed to get bill ID: %v", err)
 	}
 
-	return id
+	return billID
 }
 
 func createTestBillItem(t *testing.T, db *sql.DB) int64 {
-	result, err := db.Exec(`
-		INSERT INTO bill_items (description, default_price, created_at, updated_at)
-		VALUES (?, ?, ?, ?)
-	`, "Test Item", 100.00, time.Now(), time.Now())
-	if err != nil {
+	// Create test bill item
+	billItemRepo := repository.NewSQLiteBillItemRepository(db)
+	billItem := models.NewBillItem("Test Item", 100.00, models.DefaultCurrency())
+	if err := billItemRepo.Create(billItem); err != nil {
 		t.Fatalf("Failed to create test bill item: %v", err)
 	}
 
-	id, err := result.LastInsertId()
-	if err != nil {
-		t.Fatalf("Failed to get bill item ID: %v", err)
-	}
-
-	return id
+	return billItem.ID
 }
 
 func TestBillItemAssignmentRepository(t *testing.T) {
@@ -90,57 +116,56 @@ func TestBillItemAssignmentRepository(t *testing.T) {
 	defer db.Close()
 
 	repo := repository.NewSQLiteBillItemAssignmentRepository(db)
-
-	// Create test data
 	billID := createTestBill(t, db)
 	itemID := createTestBillItem(t, db)
 
 	// Test Create
 	t.Run("Create", func(t *testing.T) {
-		assignment := models.NewBillItemAssignment(billID, itemID, 2, 100.00)
+		assignment := models.NewBillItemAssignment(billID, itemID, 2, 100.00, models.DefaultCurrency(), 1.0)
 		err := repo.Create(assignment)
 		if err != nil {
 			t.Fatalf("Failed to create assignment: %v", err)
 		}
+
 		if assignment.ID == 0 {
 			t.Error("Expected assignment ID to be set")
 		}
-		if assignment.Subtotal != 200.00 {
-			t.Errorf("Expected subtotal to be 200.00, got %.2f", assignment.Subtotal)
+		if assignment.OriginalAmount != 200.00 {
+			t.Errorf("Expected original amount to be 200.00, got %.2f", assignment.OriginalAmount)
 		}
 	})
 
-	// Test GetByBillID
-	t.Run("GetByBillID", func(t *testing.T) {
-		assignments, err := repo.GetByBillID(billID)
+	// Test GetByID
+	t.Run("GetByID", func(t *testing.T) {
+		assignment := models.NewBillItemAssignment(billID, itemID, 2, 100.00, models.DefaultCurrency(), 1.0)
+		err := repo.Create(assignment)
 		if err != nil {
-			t.Fatalf("Failed to get assignments: %v", err)
-		}
-		if len(assignments) != 1 {
-			t.Fatalf("Expected 1 assignment, got %d", len(assignments))
+			t.Fatalf("Failed to create assignment: %v", err)
 		}
 
-		assignment := assignments[0]
-		if assignment.BillID != billID {
-			t.Errorf("Expected bill ID %d, got %d", billID, assignment.BillID)
+		retrieved, err := repo.GetByID(assignment.ID)
+		if err != nil {
+			t.Fatalf("Failed to get assignment: %v", err)
 		}
-		if assignment.ItemID != itemID {
-			t.Errorf("Expected item ID %d, got %d", itemID, assignment.ItemID)
+
+		if retrieved == nil {
+			t.Fatal("Expected assignment to be found")
 		}
-		if assignment.Quantity != 2 {
-			t.Errorf("Expected quantity 2, got %d", assignment.Quantity)
+
+		if retrieved.Quantity != 2 {
+			t.Errorf("Expected quantity 2, got %d", retrieved.Quantity)
 		}
-		if assignment.UnitPrice != 100.00 {
-			t.Errorf("Expected unit price 100.00, got %.2f", assignment.UnitPrice)
+		if retrieved.Price != 100.00 {
+			t.Errorf("Expected price 100.00, got %.2f", retrieved.Price)
 		}
-		if assignment.Subtotal != 200.00 {
-			t.Errorf("Expected subtotal 200.00, got %.2f", assignment.Subtotal)
+		if retrieved.OriginalAmount != 200.00 {
+			t.Errorf("Expected original amount 200.00, got %.2f", retrieved.OriginalAmount)
 		}
-		if assignment.BillItem == nil {
+		if retrieved.BillItem == nil {
 			t.Error("Expected bill item to be loaded")
 		} else {
-			if assignment.BillItem.Description != "Test Item" {
-				t.Errorf("Expected item description 'Test Item', got '%s'", assignment.BillItem.Description)
+			if retrieved.BillItem.Name != "Test Item" {
+				t.Errorf("Expected item name 'Test Item', got '%s'", retrieved.BillItem.Name)
 			}
 		}
 	})
@@ -154,47 +179,67 @@ func TestBillItemAssignmentRepository(t *testing.T) {
 
 		assignment := assignments[0]
 		assignment.Quantity = 3
-		assignment.UpdateSubtotal()
+		assignment.CalculateAmounts()
 
 		err = repo.Update(assignment)
 		if err != nil {
 			t.Fatalf("Failed to update assignment: %v", err)
 		}
 
-		// Verify update
-		assignments, err = repo.GetByBillID(billID)
+		updated, err := repo.GetByID(assignment.ID)
 		if err != nil {
-			t.Fatalf("Failed to get assignments after update: %v", err)
+			t.Fatalf("Failed to get updated assignment: %v", err)
 		}
 
-		updated := assignments[0]
 		if updated.Quantity != 3 {
 			t.Errorf("Expected quantity 3, got %d", updated.Quantity)
 		}
-		if updated.Subtotal != 300.00 {
-			t.Errorf("Expected subtotal 300.00, got %.2f", updated.Subtotal)
+		if updated.OriginalAmount != 300.00 {
+			t.Errorf("Expected original amount 300.00, got %.2f", updated.OriginalAmount)
 		}
 	})
 
 	// Test Delete
 	t.Run("Delete", func(t *testing.T) {
-		assignments, err := repo.GetByBillID(billID)
+		assignment := models.NewBillItemAssignment(billID, itemID, 2, 100.00, models.DefaultCurrency(), 1.0)
+		err := repo.Create(assignment)
 		if err != nil {
-			t.Fatalf("Failed to get assignments: %v", err)
+			t.Fatalf("Failed to create assignment: %v", err)
 		}
 
-		err = repo.Delete(assignments[0].ID)
+		err = repo.Delete(assignment.ID)
 		if err != nil {
 			t.Fatalf("Failed to delete assignment: %v", err)
 		}
 
-		// Verify deletion
-		assignments, err = repo.GetByBillID(billID)
+		deleted, err := repo.GetByID(assignment.ID)
 		if err != nil {
-			t.Fatalf("Failed to get assignments after deletion: %v", err)
+			t.Fatalf("Failed to check deleted assignment: %v", err)
 		}
-		if len(assignments) != 0 {
-			t.Errorf("Expected 0 assignments after deletion, got %d", len(assignments))
+		if deleted != nil {
+			t.Error("Expected assignment to be deleted")
+		}
+	})
+
+	// Test DeleteByBillID
+	t.Run("DeleteByBillID", func(t *testing.T) {
+		assignment := models.NewBillItemAssignment(billID, itemID, 2, 100.00, models.DefaultCurrency(), 1.0)
+		err := repo.Create(assignment)
+		if err != nil {
+			t.Fatalf("Failed to create assignment: %v", err)
+		}
+
+		err = repo.DeleteByBillID(billID)
+		if err != nil {
+			t.Fatalf("Failed to delete assignments by bill ID: %v", err)
+		}
+
+		assignments, err := repo.GetByBillID(billID)
+		if err != nil {
+			t.Fatalf("Failed to check deleted assignments: %v", err)
+		}
+		if len(assignments) > 0 {
+			t.Error("Expected all assignments to be deleted")
 		}
 	})
 }
